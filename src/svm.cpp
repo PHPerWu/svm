@@ -14,6 +14,7 @@ using namespace cv;
 using namespace ml;
 uchar *lbpData;
 uchar *lbpStr;
+#define EachTrainNum 10000
 void ShowTime()
 {
 	time_t tt = time(NULL);//这句返回的只是一个时间cuo
@@ -163,7 +164,7 @@ void uniformLBP(Mat &image, Mat &result)
 
 
 
-int main()
+int train()
 {
 	int endInput;
 	uchar table[256];
@@ -171,116 +172,327 @@ int main()
 	stringstream tempPath;
 	lbpData = new uchar[5900];
 	Mat image;
+	string savePath = "..\\model\\svmResult_1200.xml";
+	Ptr<SVM> svm = StatModel::load<SVM>(savePath);
+	/*
 	Ptr<SVM> svm = SVM::create();
+	*/
 	svm->setType(SVM::C_SVC);
 	svm->setKernel(SVM::LINEAR);
-	svm->setTermCriteria(TermCriteria(CV_TERMCRIT_ITER, 1000, 1e-6));
-	//CheckImage("trainingDataMat", trainingDataMat);
-	//CheckImage("labelsMat", labelsMat);
+	svm->setTermCriteria(TermCriteria(CV_TERMCRIT_ITER, 10000, 1e-12));
+	
+
 	int picNum = 10000;
-	int *labels = new int[picNum];
-	float **trainingData = new float*[picNum];
-	string rPath = "E:\\age\\IMDB\\imdb_crop\\";
+	int testNum=200;
+	string rPath = "E:\\AdienceBenchmarkOfUnfilteredFacesForGenderAndAgeClassification\\feature\\";
+	string rTestPath = "E:\\AdienceBenchmarkOfUnfilteredFacesForGenderAndAgeClassification\\feature\\";
 	int dim = 64;
 	int dimdim = dim*dim;
 	
-	ifstream info("E:\\age\\IMDB\\infoFileW.txt");
+	ifstream info("E:\\AdienceBenchmarkOfUnfilteredFacesForGenderAndAgeClassification\\gender.txt");
+	ofstream accurateFile("..\\model\\accurate.txt");
 	if (!info.is_open())
 	{
 		cout << "can't open the info file!" << endl;
 		cin >> endInput;
 		return 0;
 	}
-	
-	for (int train_count = 0; train_count < 2; train_count++)
+	//string eof;
+	string *path = new string[picNum];
+	int *gender = new int[picNum];
+	cout << "reading info..." << endl;
+	for (int i = 0; i < picNum; i++)
 	{
 		
+		info >> path[i];
+		if (0 == path[i].length())
+		{
+			cout << path[i-1] << endl;
+			cout << "reading info " << i << endl;
+		}
 		
-		string path,eof;
-		int gender;
-		info >> path;
-		info >> gender;
+		info >> gender[i];
+		//cout<< gender[i] << endl;
+		/*
 		info >> eof;
-		eof=info.peek();
+		eof = info.peek();
 		while ("\n" != eof)
 		{
 			info >> eof;
 			eof = info.peek();
 		}
-		
-		Mat Oimage = imread(rPath+ path, 0);
-		resize(Oimage, image, Size(dim, dim));
-
-		//Mat image;
-		if (!image.data)
-		{
-			cout << "Fail to load image" << endl;
-			return 0;
-		}
-		//resize(OM, image, Size(10, 10));
-		Mat result, result59;
-		result.create(Size(dim,dim), image.type());
-		result59.create(Size(dim,dim), image.type());
-
-		uniformLBP(image, result);
-		convert59(result, result59, table);
-		float *feature = new float[dimdim];
-
-		labels[train_count] = gender;
-		trainingData[train_count] = new float[dimdim];
-		for (int y = 0, j = 0; y < result59.rows; y++)
-		{
-			for (int x = 0; x < result59.cols; x++,j++)
-			{
-				trainingData[train_count][j] = (float)result59.at<uchar>(y, x);
-			}
-		}
+		*/
+		//cout << "reading info "<<i << endl;
 	}
-	Mat labelsMat(picNum, 1, CV_32SC1, labels);
-	Mat trainingDataMat(picNum,dimdim, CV_32FC1, trainingData);
-	stringstream saveNameStream;
-	int i = 0;
+	ifstream testInfo("E:\\AdienceBenchmarkOfUnfilteredFacesForGenderAndAgeClassification\\test.txt");
+	if (!testInfo.is_open())
+	{
+		cout << "can't open the info file!" << endl;
+		cin >> endInput;
+		return 0;
+	}
+	
+	string *testPath = new string[testNum];
+	int *testGender = new int[testNum];
+	cout << "reading info..." << endl;
+	for (int i = 0; i < testNum; i++)
+	{
+		
+		testInfo >> testPath[i];
+		testInfo >> testGender[i];
+		if (0 == testPath[i].length())
+		{
+			cout << "error test " << testPath[i-1] << endl;;
+			cout << "reading info " << i << endl;
+		}
+		/*
+		testInfo >> eof;
+		eof = testInfo.peek();
+		while ("\n" != eof)
+		{
+			testInfo >> eof;
+			eof = testInfo.peek();
+		}
+		*/
+		//cout << "reading info "<<i << endl;
+	}
+	cout << "test info read!" << endl;
+	
+	/*int *labels = new int[EachTrainNum];
+	float **trainingData = new float*[EachTrainNum];
+	for (int i = 0; i < EachTrainNum; i++)
+	{
+		trainingData[i] = new float[dimdim];
+	}*/
+	float trainingData[EachTrainNum][4096];
+	int labels [EachTrainNum];
+	srand((unsigned)time(NULL));
+	int  train_count= 1200;
+	//cout << path[30985] << endl;
 	while (true)
 	{
+		//cout << "select data" << endl;
+		for (int pic_count = 0; pic_count < EachTrainNum; pic_count++)
+		{
+			int randNum = rand() % picNum;
+			string imgPath =  path[randNum];
+			//cout << path[1000] << endl;
+			Mat Oimage = imread(rPath+imgPath, 0);
+			while (Oimage.empty())
+			{
+				randNum = rand() % picNum;
+				imgPath = path[randNum];
+				//cout << path[1000] << endl;
+				Oimage = imread(rPath + imgPath, 0);
+			}
+			resize(Oimage, image, Size(dim, dim));
+
+			//Mat image;
+			if (!image.data)
+			{
+				cout << "Fail to load image" << endl;
+				return 0;
+			}
+			//resize(OM, image, Size(10, 10));
+			Mat result, result59;
+			result.create(Size(dim, dim), image.type());
+			result59.create(Size(dim, dim), image.type());
+
+			uniformLBP(image, result);
+			convert59(result, result59, table);
+
+
+			labels[pic_count] = gender[randNum];
+
+			for (int y = 0, j = 0; y < result59.rows; y++)
+			{
+				for (int x = 0; x < result59.cols; x++, j++)
+				{
+					trainingData[pic_count][j] = (float)result59.at<uchar>(y, x);
+				}
+			}
+		}
+		Mat labelsMat(EachTrainNum, 1, CV_32SC1, labels);
+		Mat trainingDataMat(EachTrainNum, dimdim, CV_32FC1, trainingData);
+		stringstream saveNameStream;
+
 		string savePath;
-		saveNameStream << i;
+		saveNameStream << train_count;
 		saveNameStream >> savePath;
 		saveNameStream.clear();
-		if (svm->train(trainingDataMat, ROW_SAMPLE, labelsMat))
+		//cout << "trainning..." << endl;
+		if (svm->train(trainingDataMat, ROW_SAMPLE, labelsMat) && 0 == (train_count) % 20)
 		{
 			savePath = "..\\model\\svmResult_" + savePath + ".xml";
 			ShowTime();
-			cout << "Train " << i << endl;
+			cout << "saving " << train_count << endl;
 			svm->save(savePath);
-			i++;
+
+			//test
+			{
+				int rightNum = 0;
+				int realTestNum = testNum;
+				for (int i = 0; i < testNum; i++)
+				{
+					Mat Oimage = imread(rTestPath + testPath[i], 0);
+					while (Oimage.empty())
+					{
+						//cout << path[1000] << endl;
+						i++;
+						realTestNum--;
+						Oimage = imread(rTestPath + testPath[i], 0);
+					}
+
+					//cout << "test " << i << endl;
+					Mat sampleMat;
+					resize(Oimage, sampleMat, Size(dim, dim));
+					Mat result, result59;
+					result.create(Size(dim, dim), image.type());
+					result59.create(Size(dim, dim), image.type());
+					uniformLBP(sampleMat, result);
+					convert59(result, result59, table);
+					float testArray[1][4096];
+					for (int y = 0, j = 0; y < result59.rows; y++)
+					{
+						for (int x = 0; x < result59.cols; x++, j++)
+						{
+							testArray[0][j] = (float)result59.at<uchar>(y, x);
+						}
+					}
+					Mat test(1, dimdim, CV_32FC1, testArray);
+					//resize(result59, test, Size(dimdim, 1));
+
+					float response = svm->predict(test);
+					/*
+					if (0==response)
+					{
+						putText(Oimage, "nv",Point(50,50), CV_FONT_HERSHEY_COMPLEX,2,Scalar(0,0,255));
+					}
+					else if(1 == response)
+					{
+						putText(Oimage, "nan", Point(50, 50), CV_FONT_HERSHEY_COMPLEX, 2, Scalar(0, 0, 255));
+					}
+					if (0 == testGender[i])
+					{
+						putText(Oimage, "nv", Point(104, 124), CV_FONT_HERSHEY_COMPLEX, 2, Scalar(0, 0, 255));
+					}
+					else if (1 == testGender[i])
+					{
+						putText(Oimage, "nan", Point(104, 124), CV_FONT_HERSHEY_COMPLEX, 2, Scalar(0, 0, 255));
+					}
+					CheckImage("Oimage", Oimage);
+					*/
+					//cout << testPath[i]<<" "<<testGender[i] << " "<<response<<endl;
+					//CheckImage("Oimage", Oimage);
+					if (response == testGender[i])
+					{
+						rightNum++;
+					}
+				}
+				cout << "accurate:" << 1.0*rightNum * 100 / realTestNum << "%" << endl;
+				accurateFile << train_count << ": " << 1.0*rightNum * 100 / realTestNum << "%" << endl;
+			}
+			//test train
+			{
+				int rightNum = 0;
+				int realTestNum = testNum;
+				for (int i = 0; i < testNum; i++)
+				{
+					Mat Oimage = imread(rPath + path[i], 0);
+					while (Oimage.empty())
+					{
+						//cout << path[1000] << endl;
+						i++;
+						realTestNum--;
+						Oimage = imread(rPath + path[i], 0);
+					}
+
+					//cout << "test " << i << endl;
+					Mat sampleMat;
+					resize(Oimage, sampleMat, Size(dim, dim));
+					Mat result, result59;
+					result.create(Size(dim, dim), image.type());
+					result59.create(Size(dim, dim), image.type());
+					uniformLBP(sampleMat, result);
+					convert59(result, result59, table);
+					float testArray[1][4096];
+					for (int y = 0, j = 0; y < result59.rows; y++)
+					{
+						for (int x = 0; x < result59.cols; x++, j++)
+						{
+							testArray[0][j] = (float)result59.at<uchar>(y, x);
+						}
+					}
+					Mat test(1, dimdim, CV_32FC1, testArray);
+					//resize(result59, test, Size(dimdim, 1));
+
+					float response = svm->predict(test);
+					if (response == gender[i])
+					{
+						rightNum++;
+					}
+				}
+				cout << "accurate:" << 1.0*rightNum * 100 / realTestNum << "%" << endl;
+			}
 		}
-		
+		train_count++;
 	}
 	
-	Mat Oimage = imread(rPath+"02\\nm0000002_rm289065984_1924-9-16_1974.jpg",0);
-
-	Mat sampleMat;
-	resize(Oimage, sampleMat, Size(dim, dim));
-	Mat result, result59;
-	result.create(Size(dim, dim), image.type());
-	result59.create(Size(dim, dim), image.type());
-
-	uniformLBP(sampleMat, result);
-	convert59(result, result59, table);
-	float **testArray = new float*[1];
-	testArray[0] = new float[dimdim];
-	for (int y = 0, j = 0; y < result59.rows; y++)
-	{
-		for (int x = 0; x < result59.cols; x++, j++)
-		{
-			testArray[0][j] = (float)result59.at<uchar>(y, x);
-		}
-	}
-	Mat test(1, dimdim, CV_32FC1, testArray);
-	//resize(result59, test, Size(dimdim, 1));
-	int response =svm->predict(test);
-	cout << "response:" << response << endl;
+	
+	
 	int a;
 	cin >> a;
+	return 0;
+}
+int test()
+{
+	
+	string savePath = "..\\model\\svmResult_70000.xml";
+	Ptr<SVM> svm = StatModel::load<SVM>(savePath);
+	uchar table[256];
+	lbp59table(table);
+	uchar key= 1;
+	while (key)
+	{
+		string name;
+		cout << "print name:" << endl;
+		cin >> name;
+		Mat Oimage = imread("E:\\" + name,0);
+		while (Oimage.empty())
+		{
+			cout << "error print name:" << endl;
+			cin >> name;
+			Oimage = imread("E:\\" + name, 0);
+		}
+		int dim = 64;
+		int dimdim = dim*dim;
+		Mat sampleMat;
+		resize(Oimage, sampleMat, Size(dim, dim));
+		Mat result, result59;
+		result.create(Size(dim, dim), Oimage.type());
+		result59.create(Size(dim, dim), Oimage.type());
+		uniformLBP(sampleMat, result);
+		convert59(result, result59, table);
+		float testArray[1][4096];
+		for (int y = 0, j = 0; y < result59.rows; y++)
+		{
+			for (int x = 0; x < result59.cols; x++, j++)
+			{
+				testArray[0][j] = (float)result59.at<uchar>(y, x);
+			}
+		}
+		Mat test(1, dimdim, CV_32FC1, testArray);
+		//resize(result59, test, Size(dimdim, 1));
+
+		float response = svm->predict(test);
+		cout << response << endl;
+		imshow("Oimage",Oimage);
+		key = waitKey(0);
+	}
+	return 0;
+}
+int main()
+{
+	train();
 	return 0;
 }
